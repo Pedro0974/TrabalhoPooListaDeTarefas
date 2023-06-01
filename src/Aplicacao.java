@@ -1,102 +1,170 @@
-import java.io.File;
-import java.io.FileWriter;
 import java.io.IOException;
+import java.util.List;
 import java.util.Scanner;
 
+import org.json.JSONException;
+
+import models.listaTarefa.ListaTarefa;
+import models.tarefa.CategoriaTarefa;
 import models.tarefa.Tarefa;
 import models.usuario.Usuario;
 
 public class Aplicacao {
 
-    public static void main(String[] args) throws IOException {
-        Scanner input = new Scanner(System.in);
-        Usuario usuarioAtual = null;
+	private static Scanner input = new Scanner(System.in);
+	private static Usuario usuarioAtual = null;
+	private static String nomeCategoria = null;
 
-        while (true) {
-            System.out.println("\nBem-vindo ao Sistema de Tarefas!");
-            System.out.println("Escolha uma das opções abaixo:");
-            System.out.println("1. Criar uma nova conta");
-            System.out.println("2. Fazer login");
-            System.out.println("3. Adicionar nova tarefa");
-            System.out.println("4. Listar tarefas pendentes");
-            System.out.println("5. Fechar tarefa");
-            System.out.println("6. Sair");
+	public static void main(String[] args) throws IOException, JSONException {
+		exibirMenuLogin();
+		exibirMenuTarefas();
+	}
 
-            int opcao = input.nextInt();
-            input.nextLine(); // limpa o buffer do teclado
+	private static void exibirMenuLogin() throws IOException, JSONException {
+		System.out.println("Bem-vindo ao Sistema de Tarefas!");
 
-            switch (opcao) {
-                case 1:
-                    System.out.println("\nDigite o nome do usuário:");
-                    String nome = input.nextLine();
-                    System.out.println("Digite a senha:");
-                    String senha = input.nextLine();
+		while (usuarioAtual == null) {
+			System.out.println("\nMenu de Login:");
+			System.out.println("1. Criar uma nova conta");
+			System.out.println("2. Fazer login");
+			System.out.println("3. Sair");
 
-                    Usuario novoUsuario = new Usuario(nome, senha);
-                    novoUsuario.criarArquivoUsuario();
-                    System.out.println("Usuário criado com sucesso!");
-                    break;
+			int opcaoLogin = input.nextInt();
+			input.nextLine(); // limpa o buffer do teclado
 
-                case 2:
-                    System.out.println("\nDigite o nome do usuário:");
-                    String nomeUsuario = input.nextLine();
-                    System.out.println("Digite a senha:");
-                    String senhaUsuario = input.nextLine();
+			switch (opcaoLogin) {
+			case 1:
+				criarNovaConta();
+				break;
 
-                    Usuario usuario = Usuario.validarLogin(nomeUsuario, senhaUsuario);
-                    if (usuario != null) {
-                        usuarioAtual = usuario;
-                        System.out.println("Login realizado com sucesso!");
-                    } else {
-                        System.out.println("Usuário ou senha inválidos!");
-                    }
-                    break;
+			case 2:
+				fazerLogin();
+				
+				break;
 
-                case 3:
-                    if (usuarioAtual == null) {
-                        System.out.println("\nVocê precisa fazer login para acessar essa opção!");
-                        break;
-                    }
+			case 3:
+				System.out.println("\nObrigado por usar nosso sistema!");
+				System.exit(0);
 
-                    System.out.println("\nDigite o título da nova tarefa:");
-                    String titulo = input.nextLine();
-                    System.out.println("Digite a descrição:");
-                    String descricao = input.nextLine();
+			default:
+				System.out.println("\nOpção inválida! Escolha novamente.");
+				break;
+			}
+		}
+	}
 
-                    Tarefa novaTarefa = new Tarefa(titulo, descricao);
-                    usuarioAtual.getListaDeTarefas().adicionarTarefaPendente(titulo, descricao);
-                    System.out.println("Tarefa adicionada com sucesso!");
-                    break;
-                
-                case 4:
-                	usuarioAtual.getListaDeTarefas().exibirTarefasPendentes();
-                	break;
+	private static void criarNovaConta() throws IOException, JSONException {
+		System.out.println("\nDigite o nome do usuário:");
+		String nome = input.nextLine();
+		System.out.println("Digite a senha:");
+		String senha = input.nextLine();
 
-                case 5:
-                    if (usuarioAtual == null) {
-                        System.out.println("\nVocê precisa fazer login para acessar essa opção!");
-                        break;
-                    }
+		Usuario novoUsuario = new Usuario(nome, senha);
+		novoUsuario.criarArquivoJSON();
 
-                    System.out.println("\nDigite o título da tarefa que deseja fechar:");
-                    String tituloTarefa = input.nextLine();
-                    Tarefa tarefa = usuarioAtual.getListaDeTarefas().buscarTarefa(tituloTarefa);
-                    if (tarefa != null) {
-                        usuarioAtual.getListaDeTarefas().concluirTarefa(tituloTarefa);
-                        System.out.println("Tarefa fechada com sucesso!");
-                    } else {
-                        System.out.println("Tarefa não encontrada na lista de pendentes!");
-                    }
-                    break;
+		usuarioAtual = novoUsuario;
+	}
 
-                case 6:
-                    System.out.println("\nObrigado por usar nosso sistema!");
-                    System.exit(0);
+	private static void fazerLogin() throws IOException, JSONException {
+	    System.out.println("\nDigite o nome do usuário:");
+	    String nomeUsuario = input.nextLine();
+	    System.out.println("Digite a senha:");
+	    String senhaUsuario = input.nextLine();
 
-                default:
-                    System.out.println("\nOpção inválida! Escolha novamente.");
-                    break;
-            }
-        }
-    }
+	    Usuario usuario = Usuario.validarLogin(nomeUsuario, senhaUsuario);
+	    if (usuario != null) {
+	        usuarioAtual = usuario;
+	        usuarioAtual.carregarTarefasUsuario(); // Carrega as tarefas do usuário
+	        System.out.println("Login realizado com sucesso!");
+	    } else {
+	        System.out.println("Usuário ou senha inválidos!");
+	    }
+	}
+
+
+	private static void exibirMenuTarefas() throws JSONException, IOException {
+		while (true) {
+			System.out.println("\nMenu de Tarefas:");
+			System.out.println("1. Adicionar nova tarefa");
+			System.out.println("2. Listar tarefas pendentes");
+			System.out.println("3. Filtrar por Categoria");
+			System.out.println("4. Fechar tarefa");
+			System.out.println("5. Listar tarefas concluídas");
+			System.out.println("6. Sair");
+
+			int opcaoTarefas = input.nextInt();
+			input.nextLine(); // limpa o buffer do teclado
+
+			switch (opcaoTarefas) {
+			case 1:
+				adicionarNovaTarefa();
+				break;
+
+			case 2:
+				usuarioAtual.getListaDeTarefas().exibirTarefasPendentes();
+				break;
+
+			case 3:
+				filtrarTarefasPorCategoria();
+				break;
+
+			case 4:
+				fecharTarefa();
+				break;
+
+			case 5:
+				usuarioAtual.getListaDeTarefas().exibirTarefasConcluidas();
+				break;
+
+			case 6:
+				System.out.println("\nObrigado por usar nosso sistema!");
+				System.exit(0);
+
+			default:
+				System.out.println("\nOpção inválida! Escolha novamente.");
+				break;
+			}
+		}
+	}
+
+	private static void adicionarNovaTarefa() throws JSONException, IOException {
+		System.out.println("\nDigite o título da nova tarefa:");
+		String titulo = input.nextLine();
+		System.out.println("Digite a descrição:");
+		String descricao = input.nextLine();
+
+		System.out.println("Digite a Categoria:");
+		nomeCategoria = input.nextLine();
+		CategoriaTarefa categoria = new CategoriaTarefa(nomeCategoria);
+
+		usuarioAtual.getListaDeTarefas().adicionarTarefaPendente(titulo, descricao, categoria);
+		System.out.println("Tarefa adicionada com sucesso!");
+	}
+
+	private static void filtrarTarefasPorCategoria() {
+	    System.out.println("Digite a Categoria:");
+	    nomeCategoria = input.nextLine();
+
+	    List<Tarefa> tarefasFiltradas = usuarioAtual.getListaDeTarefas().buscarTarefasPorCategoria(nomeCategoria);
+	    for (Tarefa tarefa : tarefasFiltradas) {
+	        System.out.println("Título: " + tarefa.getTitulo());
+	        System.out.println("Descrição: " + tarefa.getDescricao());
+	        System.out.println("Categoria: " + tarefa.getCategoria().toString());
+	        System.out.println("Status: " + tarefa.getStatus());
+	        System.out.println("---------------------");
+	    }
+	}
+
+
+	private static void fecharTarefa() throws JSONException {
+		System.out.println("\nDigite o título da tarefa que deseja fechar:");
+		String tituloTarefa = input.nextLine();
+		Tarefa tarefa = usuarioAtual.getListaDeTarefas().buscarTarefa(tituloTarefa);
+		if (tarefa != null) {
+			usuarioAtual.getListaDeTarefas().concluirTarefa(tituloTarefa);
+			System.out.println("Tarefa fechada com sucesso!");
+		} else {
+			System.out.println("Tarefa não encontrada na lista de pendentes!");
+		}
+	}
 }
