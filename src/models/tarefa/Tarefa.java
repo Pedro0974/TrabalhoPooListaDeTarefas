@@ -16,15 +16,15 @@ public class Tarefa {
     private LocalDate dataConclusao;
     private boolean status;
     private CategoriaTarefa categoria;
-    private List<SubTarefa> subtarefas;
+    private SubTarefa subtarefa;
 
-    public Tarefa(String titulo, String descricao, CategoriaTarefa categoria) {
+    public Tarefa(String titulo, String descricao, CategoriaTarefa categoria, SubTarefa subtarefa) {
+        this.subtarefa = subtarefa;
         this.titulo = titulo;
         this.descricao = descricao;
         this.dataCriacao = LocalDate.now();
         this.status = false;
         this.categoria = categoria;
-        this.subtarefas = new ArrayList<>();
     }
 
     public String getTitulo() {
@@ -67,17 +67,14 @@ public class Tarefa {
         this.categoria = categoria;
     }
 
-    public List<SubTarefa> getSubtarefas() {
-        return subtarefas;
+    public SubTarefa getSubtarefa() {
+        return subtarefa;
     }
 
-    public void adicionarSubtarefa(SubTarefa subtarefa) {
-        subtarefas.add(subtarefa);
+    public void setSubtarefa(SubTarefa subtarefa) {
+        this.subtarefa = subtarefa;
     }
-
-    public void removerSubtarefa(SubTarefa subtarefa) {
-        subtarefas.remove(subtarefa);
-    }
+    
 
     public void concluir() {
         this.status = true;
@@ -98,38 +95,39 @@ public class Tarefa {
         json.put("status", this.status);
         json.put("categoria", this.categoria.getNome());
 
-        JSONArray subtarefasJson = new JSONArray();
-        for (SubTarefa subtarefa : subtarefas) {
-            JSONObject subtarefaJson = new JSONObject();
-            subtarefaJson.put("titulo", subtarefa.getTitulo());
-            subtarefaJson.put("concluida", subtarefa.isConcluida());
-            subtarefasJson.put(subtarefaJson);
+        if (subtarefa != null) {
+            json.put("subtarefa", subtarefa.toJson());
+        } else {
+            json.put("subtarefa", JSONObject.NULL);
         }
-        json.put("subtarefas", subtarefasJson);
 
         return json;
     }
 
+
     public static Tarefa fromJson(JSONObject json) throws JSONException {
         String titulo = json.getString("titulo");
         String descricao = json.getString("descricao");
-        Tarefa tarefa = new Tarefa(titulo, descricao, null);
+        Tarefa tarefa = new Tarefa(titulo, descricao, null, null);
         tarefa.setDataConclusao(json.has("dataConclusao") && !json.isNull("dataConclusao") ? LocalDate.parse(json.getString("dataConclusao")) : null);
         tarefa.status = json.getBoolean("status");
         tarefa.setCategoria(new CategoriaTarefa(json.getString("categoria")));
 
-        if (json.has("subtarefas")) {
-            JSONArray subtarefasJson = json.getJSONArray("subtarefas");
-            for (int i = 0; i < subtarefasJson.length(); i++) {
-                JSONObject subtarefaJson = subtarefasJson.getJSONObject(i);
-                String subtarefaTitulo = subtarefaJson.getString("titulo");
-                boolean subtarefaConcluida = subtarefaJson.getBoolean("concluida");
-                SubTarefa subtarefa = new SubTarefa(subtarefaTitulo, subtarefaConcluida);
-                tarefa.adicionarSubtarefa(subtarefa);
-            }
+        if (json.has("subtarefa") && !json.isNull("subtarefa")) {
+            JSONObject subtarefaJson = json.getJSONObject("subtarefa");
+            SubTarefa subtarefa = SubTarefa.fromJson(subtarefaJson);
+            tarefa.setSubtarefa(subtarefa);
         }
 
         return tarefa;
     }
 
+    
+    @Override
+    public String toString() {
+        return "Título: " + this.getTitulo() + "\n"
+                + "Descrição: " + this.getDescricao() + "\n"
+                + "Categoria: " + this.getCategoria().toString() + "\n"
+                + "Status: " + this.getStatus();
+    }
 }

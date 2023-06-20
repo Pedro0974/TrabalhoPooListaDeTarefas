@@ -12,6 +12,7 @@ import java.util.List;
 
 import models.tarefa.Tarefa;
 import models.tarefa.CategoriaTarefa;
+import models.tarefa.SubTarefa;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -20,29 +21,87 @@ import org.json.JSONObject;
 public class ListaTarefa {
     private List<Tarefa> tarefasPendentes;
     private List<Tarefa> tarefasConcluidas;
-    private String nomeUsuario;
     private String caminhoArquivo;
 
     public ListaTarefa(String nomeUsuario, String caminhoArquivo) {
-        this.nomeUsuario = nomeUsuario;
         this.caminhoArquivo = caminhoArquivo;
         this.tarefasPendentes = new ArrayList<>();
         this.tarefasConcluidas = new ArrayList<>();
     }
 
-    public void adicionarTarefaPendente(String titulo, String descricao, CategoriaTarefa categoria)
+    public void adicionarTarefaPendente(String titulo, String descricao, CategoriaTarefa categoria, SubTarefa subtarefa)
             throws JSONException, IOException {
-        Tarefa tarefa = new Tarefa(titulo, descricao, categoria);
+    	Tarefa tarefa = new Tarefa(titulo, descricao, categoria, subtarefa); // Adicionado o construtor da Tarefa
         this.tarefasPendentes.add(tarefa);
         this.atualizarTarefasUsuario();
     }
 
+    public void adicionarTarefaPendente(Tarefa tarefa) throws JSONException, IOException {
+        Tarefa novaTarefa = new Tarefa(tarefa.getTitulo(), tarefa.getDescricao(), tarefa.getCategoria(), tarefa.getSubtarefa()); // Adicionado o construtor da Tarefa
+        this.tarefasPendentes.add(novaTarefa);
+        this.atualizarTarefasUsuario();
+    }
+    
     public void adicionarTarefaConcluida(Tarefa tarefa) throws JSONException {
-        tarefa.concluir();
+        Tarefa tarefaConcluida = new Tarefa(tarefa.getTitulo(), tarefa.getDescricao(), tarefa.getCategoria(), tarefa.getSubtarefa()); // Adicionado o construtor da Tarefa
+        tarefaConcluida.concluir();
         this.tarefasPendentes.remove(tarefa);
-        this.tarefasConcluidas.add(tarefa);
+        this.tarefasConcluidas.add(tarefaConcluida);
+        removerTarefaPendenteDoArquivo(tarefa);
         salvarTarefas();
     }
+
+ 
+    private void removerTarefaPendenteDoArquivo(Tarefa tarefa) throws JSONException {
+        try {
+            File arquivo = new File(this.caminhoArquivo);
+
+            if (!arquivo.exists()) {
+                System.out.println("Arquivo de tarefas não encontrado.");
+                return;
+            }
+
+            String content = new String(Files.readAllBytes(Paths.get(this.caminhoArquivo)));
+
+            if (content.isEmpty()) {
+                System.out.println("Arquivo de tarefas vazio.");
+                return;
+            }
+
+            JSONObject jsonObject = new JSONObject(content);
+
+            JSONArray jsonArray;
+
+            if (jsonObject.has("Tarefas")) {
+                jsonArray = jsonObject.getJSONArray("Tarefas");
+            } else {
+                jsonArray = new JSONArray();
+            }
+
+            JSONArray novasTarefasJsonArray = new JSONArray();
+
+            for (int i = 0; i < jsonArray.length(); i++) {
+                JSONObject tarefaJson = jsonArray.getJSONObject(i);
+                Tarefa tarefaPendente = Tarefa.fromJson(tarefaJson);
+                boolean status = tarefaJson.getBoolean("status");
+                if (!status && tarefaPendente.getTitulo().equals(tarefa.getTitulo())) {
+                    continue; // Ignora a tarefa pendente a ser removida
+                }
+                novasTarefasJsonArray.put(tarefaPendente.toJson());
+            }
+
+            jsonObject.put("Tarefas", novasTarefasJsonArray);
+
+            FileWriter fileWriter = new FileWriter(this.caminhoArquivo);
+            fileWriter.write(jsonObject.toString());
+            fileWriter.close();
+        } catch (IOException e) {
+            System.out.println("Erro ao remover a tarefa pendente do arquivo!");
+            e.printStackTrace();
+        }
+    }
+
+
 
     public List<Tarefa> getTarefasPendentes() {
         return this.tarefasPendentes;
@@ -75,6 +134,17 @@ public class ListaTarefa {
             salvarTarefas();
         }
     }
+    
+    public void adicionarSubtarefa(String tituloTarefa, SubTarefa subtarefa) throws JSONException {
+        Tarefa tarefa = buscarTarefa(tituloTarefa);
+        if (tarefa != null) {
+            tarefa.setSubtarefa(subtarefa);
+            salvarTarefas();
+        } else {
+            System.out.println("Tarefa não encontrada.");
+        }
+    }
+
 
     private void atualizarTarefasUsuario() throws IOException, JSONException {
         try {
@@ -118,46 +188,19 @@ public class ListaTarefa {
 
     private void salvarTarefas() throws JSONException {
         try {
-            File arquivo = new File(this.caminhoArquivo);
+            JSONObject jsonObject = new JSONObject();
 
-            if (!arquivo.exists()) {
-                arquivo.createNewFile();
+            JSONArray pendentesJsonArray = new JSONArray();
+            for (Tarefa tarefa : tarefasPendentes) {
+                pendentesJsonArray.put(tarefa.toJson());
             }
+            jsonObject.put("tarefasPendentes", pendentesJsonArray);
 
-            JSONObject jsonObject;
-
-            if (Files.exists(Paths.get(this.caminhoArquivo))) {
-                String content = new String(Files.readAllBytes(Paths.get(this.caminhoArquivo)));
-                if (!content.isEmpty()) {
-                    jsonObject = new JSONObject(content);
-                } else {
-                    jsonObject = new JSONObject();
-                }
-            } else {
-                jsonObject = new JSONObject();
+            JSONArray concluidasJsonArray = new JSONArray();
+            for (Tarefa tarefa : tarefasConcluidas) {
+                concluidasJsonArray.put(tarefa.toJson());
             }
-
-            JSONArray jsonArray;
-
-            if (jsonObject.has("Tarefas")) {
-                jsonArray = jsonObject.getJSONArray("Tarefas");
-            } else {
-                jsonArray = new JSONArray();
-            }
-
-            for (Tarefa tarefa : this.tarefasPendentes) {
-                JSONObject tarefaJson = tarefa.toJson();
-                tarefaJson.put("status", false);
-                jsonArray.put(tarefaJson);
-            }
-
-            for (Tarefa tarefa : this.tarefasConcluidas) {
-                JSONObject tarefaJson = tarefa.toJson();
-                tarefaJson.put("status", true);
-                jsonArray.put(tarefaJson);
-            }
-
-            jsonObject.put("Tarefas", jsonArray);
+            jsonObject.put("tarefasConcluidas", concluidasJsonArray);
 
             FileWriter fileWriter = new FileWriter(this.caminhoArquivo);
             fileWriter.write(jsonObject.toString());
@@ -187,7 +230,8 @@ public class ListaTarefa {
     	      } else {
     	         System.out.println("Categoria: (Categoria não definida)");
     	      }
-    	      
+    	      System.out.println("SubTarefa: " + tarefa.getSubtarefa());
+
     	      System.out.println("Status: " + tarefa.getStatus());
     	      System.out.println("---------------------");
     	   }
@@ -199,6 +243,7 @@ public class ListaTarefa {
         for (Tarefa tarefa : this.tarefasConcluidas) {
             System.out.println("Título: " + tarefa.getTitulo());
             System.out.println("Descrição: " + tarefa.getDescricao());
+            System.out.println("SubTarefa: " + tarefa.getSubtarefa());
             System.out.println("Status: " + tarefa.getStatus());
             System.out.println("---------------------");
         }
@@ -222,23 +267,21 @@ public class ListaTarefa {
 
             JSONObject jsonObject = new JSONObject(content);
 
-            JSONArray jsonArray;
-
-            if (jsonObject.has("Tarefas")) {
-                jsonArray = jsonObject.getJSONArray("Tarefas");
-            } else {
-                jsonArray = new JSONArray();
+            if (jsonObject.has("tarefasPendentes")) {
+                JSONArray pendentesJsonArray = jsonObject.getJSONArray("tarefasPendentes");
+                for (int i = 0; i < pendentesJsonArray.length(); i++) {
+                    JSONObject tarefaJson = pendentesJsonArray.getJSONObject(i);
+                    Tarefa tarefa = Tarefa.fromJson(tarefaJson);
+                    this.tarefasPendentes.add(tarefa);
+                }
             }
 
-            for (int i = 0; i < jsonArray.length(); i++) {
-                JSONObject tarefaJson = jsonArray.getJSONObject(i);
-                Tarefa tarefa = Tarefa.fromJson(tarefaJson);
-                boolean status = tarefaJson.getBoolean("status");
-                if (status) {
-                    tarefa.concluir();
+            if (jsonObject.has("tarefasConcluidas")) {
+                JSONArray concluidasJsonArray = jsonObject.getJSONArray("tarefasConcluidas");
+                for (int i = 0; i < concluidasJsonArray.length(); i++) {
+                    JSONObject tarefaJson = concluidasJsonArray.getJSONObject(i);
+                    Tarefa tarefa = Tarefa.fromJson(tarefaJson);
                     this.tarefasConcluidas.add(tarefa);
-                } else {
-                    this.tarefasPendentes.add(tarefa);
                 }
             }
         } catch (IOException e) {
@@ -246,6 +289,7 @@ public class ListaTarefa {
             e.printStackTrace();
         }
     }
+
 
     public String getCaminhoArquivo() {
         return this.caminhoArquivo;
@@ -260,6 +304,17 @@ public class ListaTarefa {
             }
         }
 
+        if (tarefasPorCategoria.isEmpty()) {
+            for (Tarefa tarefa : this.tarefasConcluidas) {
+                if (tarefa.getCategoria().toString().equals(nomeCategoria)) {
+                    tarefasPorCategoria.add(tarefa);
+                }
+            }
+        }
+
         return tarefasPorCategoria;
     }
+    
+
+    
 }
